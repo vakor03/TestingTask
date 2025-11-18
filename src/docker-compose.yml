@@ -7,17 +7,4 @@ services:
       - ACCEPT_EULA=Y
     restart: always
     ports:
-      - "1433:1433"
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2019-latest
-    environment:
-      - ACCEPT_EULA=Y
-      - SA_PASSWORD=${Sa_Password:-#password123sdJwnwlk}
-      - MSSQL_PID=Developer
-    ports:
-      - "1434:1433"
-    volumes:
-      - sqlserver_data:/var/opt/mssql
-    restart: always
-volumes:
-  sqlserver_data:
+      - "1435:1433"
