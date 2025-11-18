@@ -9,7 +9,9 @@ namespace TestingTask.CLI;
 
 public class MainExecutionThread(AppSettings appSettings, ILogger<MainExecutionThread> logger)
 {
-    private readonly HashSet<DuplicateKey> _duplicates = new();
+    private const int BULK_COPY_TIMEOUT = 600;
+
+    private readonly HashSet<DuplicateKey> _duplicateKeys = new();
     private readonly List<CabData> _removedData = new();
 
     public void Run()
@@ -21,7 +23,7 @@ public class MainExecutionThread(AppSettings appSettings, ILogger<MainExecutionT
         ProcessData(parsedData, table, out int rowsInserted);
 
         WriteDuplicatesCsv();
-        
+
         logger.LogInformation($"Inserted {rowsInserted} rows.");
     }
 
@@ -31,6 +33,7 @@ public class MainExecutionThread(AppSettings appSettings, ILogger<MainExecutionT
         using var duplicatesCsv = new CsvWriter(duplicatesWriter, CultureInfo.InvariantCulture);
 
         duplicatesCsv.WriteRecords(_removedData);
+        logger.LogInformation($"Duplicates written to file:///{Path.GetFullPath(appSettings.DuplicatesFilePath).Replace('\\', '/')}.");
     }
 
     private DataTable CreateDataTableSchema()
@@ -71,7 +74,7 @@ public class MainExecutionThread(AppSettings appSettings, ILogger<MainExecutionT
                 _removedData.Add(record);
             else
             {
-                _duplicates.Add(duplicateKey);
+                _duplicateKeys.Add(duplicateKey);
                 yield return record;
             }
         }
@@ -96,12 +99,12 @@ public class MainExecutionThread(AppSettings appSettings, ILogger<MainExecutionT
         dataTable.Clear();
     }
 
+    private bool DuplicateKeyAlreadyAdded(DuplicateKey duplicateKey) =>
+        _duplicateKeys.Contains(duplicateKey);
+
     private static DuplicateKey CreateDuplicateKey(CabData cabData) =>
         new(cabData.tpep_pickup_datetime, cabData.tpep_dropoff_datetime,
             cabData.passenger_count);
-
-    private bool DuplicateKeyAlreadyAdded(DuplicateKey duplicateKey) =>
-        _duplicates.Contains(duplicateKey);
 
     private int BulkInsertTable(DataTable table, string connectionString, string tableName)
     {
@@ -126,7 +129,7 @@ public class MainExecutionThread(AppSettings appSettings, ILogger<MainExecutionT
     {
         bulk.DestinationTableName = tableName;
         bulk.BatchSize = batchSize;
-        bulk.BulkCopyTimeout = 600;
+        bulk.BulkCopyTimeout = BULK_COPY_TIMEOUT;
 
         bulk.ColumnMappings.Add("tpep_pickup_datetime", "tpep_pickup_datetime");
         bulk.ColumnMappings.Add("tpep_dropoff_datetime", "tpep_dropoff_datetime");
