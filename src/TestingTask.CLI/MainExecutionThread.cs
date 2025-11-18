@@ -8,13 +8,16 @@ namespace TestingTask.CLI;
 
 public class MainExecutionThread(AppSettings appSettings)
 {
+    private readonly HashSet<DuplicateKey> _duplicates = new();
+    private readonly List<CabData> _removedData = new();
+
     public void Run()
     {
-        var foos = ReadCsvFile();
+        var parsedData = ReadCsvFile();
 
         var table = CreateDataTableSchema();
 
-        ProcessData(foos, table);
+        ProcessData(parsedData, table);
 
         WriteDuplicatesCsv();
     }
@@ -42,7 +45,7 @@ public class MainExecutionThread(AppSettings appSettings)
         return dt;
     }
 
-    private IEnumerable<Foo> ReadCsvFile()
+    private IEnumerable<CabData> ReadCsvFile()
     {
         using var reader = new StreamReader(appSettings.InputFilePath);
         var csvConfiguration = new CsvConfiguration(CultureInfo.InvariantCulture)
@@ -59,7 +62,7 @@ public class MainExecutionThread(AppSettings appSettings)
         csv.ReadHeader();
         while (csv.Read())
         {
-            Foo record = ReadRecord(csv);
+            CabData record = ReadRecord(csv);
             var duplicateKey = CreateDuplicateKey(record);
             if (DuplicateKeyAlreadyAdded(duplicateKey))
                 _removedData.Add(record);
@@ -71,34 +74,27 @@ public class MainExecutionThread(AppSettings appSettings)
         }
     }
 
-    private void ProcessData(IEnumerable<Foo> foos, DataTable table)
+    private void ProcessData(IEnumerable<CabData> cabDataList, DataTable table)
     {
-        foreach (List<Foo> batch in foos.BatchZeroCopy(appSettings.BatchSize))
-        {
+        foreach (List<CabData> batch in cabDataList.BatchZeroCopy(appSettings.BatchSize))
             ProcessSingleBatch(batch, table);
-        }
     }
 
-    private void ProcessSingleBatch(List<Foo> batch, DataTable dataTable)
+    private void ProcessSingleBatch(List<CabData> batch, DataTable dataTable)
     {
-        {
-            foreach (Foo foo in batch)
-                dataTable.Rows.Add(TransformDataAndConvertToRow(dataTable, foo));
+        foreach (CabData cabData in batch)
+            dataTable.Rows.Add(TransformDataAndConvertToRow(dataTable, cabData));
 
-            BulkInsertTable(dataTable, appSettings.ConnectionString);
-            dataTable.Clear();
-        }
+        BulkInsertTable(dataTable, appSettings.ConnectionString);
+        dataTable.Clear();
     }
 
-    private static DuplicateKey CreateDuplicateKey(Foo foo) =>
-        new(foo.tpep_pickup_datetime, foo.tpep_dropoff_datetime,
-            foo.passenger_count);
+    private static DuplicateKey CreateDuplicateKey(CabData cabData) =>
+        new(cabData.tpep_pickup_datetime, cabData.tpep_dropoff_datetime,
+            cabData.passenger_count);
 
     private bool DuplicateKeyAlreadyAdded(DuplicateKey duplicateKey) =>
         _duplicates.Contains(duplicateKey);
-
-    private HashSet<DuplicateKey> _duplicates = new();
-    private List<Foo> _removedData = new();
 
     private int BulkInsertTable(DataTable table, string connectionString)
     {
@@ -119,9 +115,9 @@ public class MainExecutionThread(AppSettings appSettings)
         }
     }
 
-    private static void InitializeBulkCopy(SqlBulkCopy bulk, int butchSize)
+    private void InitializeBulkCopy(SqlBulkCopy bulk, int butchSize)
     {
-        bulk.DestinationTableName = "dbo.Trips";
+        bulk.DestinationTableName = appSettings.TableName;
         bulk.BatchSize = butchSize;
         bulk.BulkCopyTimeout = 600;
 
@@ -136,34 +132,34 @@ public class MainExecutionThread(AppSettings appSettings)
         bulk.ColumnMappings.Add("tip_amount", "tip_amount");
     }
 
-    private static DataRow TransformDataAndConvertToRow(DataTable table, Foo foo)
+    private static DataRow TransformDataAndConvertToRow(DataTable table, CabData cabData)
     {
-        DateTime fooTpepPickupDatetime = foo.tpep_pickup_datetime;
-        DateTime fooTpepDropoffDatetime = foo.tpep_dropoff_datetime;
-        string? fooStoreAndFwdFlag = foo.store_and_fwd_flag;
-        fooStoreAndFwdFlag = fooStoreAndFwdFlag switch
+        DateTime pickupDatetime = cabData.tpep_pickup_datetime;
+        DateTime dropoffDateTime = cabData.tpep_dropoff_datetime;
+        string? storeAndFwdFlag = cabData.store_and_fwd_flag;
+        storeAndFwdFlag = storeAndFwdFlag switch
         {
             "N" => "No",
             "Y" => "Yes",
-            _ => fooStoreAndFwdFlag
+            _ => storeAndFwdFlag
         };
-        fooTpepPickupDatetime = ConvertEstToUtc(fooTpepPickupDatetime);
-        fooTpepDropoffDatetime = ConvertEstToUtc(fooTpepDropoffDatetime);
+        pickupDatetime = ConvertEstToUtc(pickupDatetime);
+        dropoffDateTime = ConvertEstToUtc(dropoffDateTime);
 
         var row = table.NewRow();
-        row["tpep_pickup_datetime"] = fooTpepPickupDatetime;
-        row["tpep_dropoff_datetime"] = fooTpepDropoffDatetime;
-        row["passenger_count"] = foo.passenger_count;
-        row["trip_distance"] = foo.trip_distance;
-        row["store_and_fwd_flag"] = fooStoreAndFwdFlag;
-        row["PULocationID"] = foo.PULocationID;
-        row["DOLocationID"] = foo.DOLocationID;
-        row["fare_amount"] = foo.fare_amount;
-        row["tip_amount"] = foo.tip_amount;
+        row["tpep_pickup_datetime"] = pickupDatetime;
+        row["tpep_dropoff_datetime"] = dropoffDateTime;
+        row["passenger_count"] = cabData.passenger_count;
+        row["trip_distance"] = cabData.trip_distance;
+        row["store_and_fwd_flag"] = storeAndFwdFlag;
+        row["PULocationID"] = cabData.PULocationID;
+        row["DOLocationID"] = cabData.DOLocationID;
+        row["fare_amount"] = cabData.fare_amount;
+        row["tip_amount"] = cabData.tip_amount;
         return row;
     }
 
-    private Foo ReadRecord(CsvReader csv)
+    private CabData ReadRecord(CsvReader csv)
     {
         csv.TryGetField<DateTime>("tpep_pickup_datetime", out var tpepPickupDatetime);
         csv.TryGetField<DateTime>("tpep_dropoff_datetime", out var tpepDropoffDatetime);
@@ -175,7 +171,7 @@ public class MainExecutionThread(AppSettings appSettings)
         csv.TryGetField<decimal>("fare_amount", out var fareAmount);
         csv.TryGetField<decimal>("tip_amount", out var tipAmount);
 
-        var record = new Foo()
+        var record = new CabData()
         {
             tpep_pickup_datetime = tpepPickupDatetime,
             tpep_dropoff_datetime = tpepDropoffDatetime,

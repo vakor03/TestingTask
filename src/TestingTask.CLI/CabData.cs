@@ -1,6 +1,6 @@
 ﻿namespace TestingTask.CLI;
 
-public record Foo
+public record CabData
 {
     public DateTime tpep_pickup_datetime { get; set; }
     public DateTime tpep_dropoff_datetime { get; set; }
