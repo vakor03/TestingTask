@@ -83,9 +83,9 @@ public class MainExecutionThread(AppSettings appSettings)
     private void ProcessSingleBatch(List<CabData> batch, DataTable dataTable)
     {
         foreach (CabData cabData in batch)
-            dataTable.Rows.Add(TransformDataAndConvertToRow(dataTable, cabData));
+            dataTable.Rows.Add(ConvertToRow(dataTable, TransformDataToDTO(cabData)));
 
-        BulkInsertTable(dataTable, appSettings.ConnectionString);
+        BulkInsertTable(dataTable, appSettings.ConnectionString, appSettings.TableName);
         dataTable.Clear();
     }
 
@@ -96,12 +96,12 @@ public class MainExecutionThread(AppSettings appSettings)
     private bool DuplicateKeyAlreadyAdded(DuplicateKey duplicateKey) =>
         _duplicates.Contains(duplicateKey);
 
-    private int BulkInsertTable(DataTable table, string connectionString)
+    private int BulkInsertTable(DataTable table, string connectionString, string tableName)
     {
         using var conn = new SqlConnection(connectionString);
         conn.Open();
         using var bulk = new SqlBulkCopy(conn);
-        InitializeBulkCopy(bulk, table.Rows.Count);
+        InitializeBulkCopy(bulk, table.Rows.Count, tableName);
 
         try
         {
@@ -115,10 +115,10 @@ public class MainExecutionThread(AppSettings appSettings)
         }
     }
 
-    private void InitializeBulkCopy(SqlBulkCopy bulk, int butchSize)
+    private void InitializeBulkCopy(SqlBulkCopy bulk, int batchSize, string tableName)
     {
-        bulk.DestinationTableName = appSettings.TableName;
-        bulk.BatchSize = butchSize;
+        bulk.DestinationTableName = tableName;
+        bulk.BatchSize = batchSize;
         bulk.BulkCopyTimeout = 600;
 
         bulk.ColumnMappings.Add("tpep_pickup_datetime", "tpep_pickup_datetime");
@@ -132,7 +132,22 @@ public class MainExecutionThread(AppSettings appSettings)
         bulk.ColumnMappings.Add("tip_amount", "tip_amount");
     }
 
-    private static DataRow TransformDataAndConvertToRow(DataTable table, CabData cabData)
+    private static DataRow ConvertToRow(DataTable table, CabDataDTO cabData)
+    {
+        var row = table.NewRow();
+        row["tpep_pickup_datetime"] = cabData.tpep_pickup_datetime;
+        row["tpep_dropoff_datetime"] = cabData.tpep_dropoff_datetime;
+        row["passenger_count"] = cabData.passenger_count;
+        row["trip_distance"] = cabData.trip_distance;
+        row["store_and_fwd_flag"] = cabData.store_and_fwd_flag;
+        row["PULocationID"] = cabData.PULocationID;
+        row["DOLocationID"] = cabData.DOLocationID;
+        row["fare_amount"] = cabData.fare_amount;
+        row["tip_amount"] = cabData.tip_amount;
+        return row;
+    }
+
+    private static CabDataDTO TransformDataToDTO(CabData cabData)
     {
         DateTime pickupDatetime = cabData.tpep_pickup_datetime;
         DateTime dropoffDateTime = cabData.tpep_dropoff_datetime;
@@ -146,20 +161,20 @@ public class MainExecutionThread(AppSettings appSettings)
         pickupDatetime = ConvertEstToUtc(pickupDatetime);
         dropoffDateTime = ConvertEstToUtc(dropoffDateTime);
 
-        var row = table.NewRow();
-        row["tpep_pickup_datetime"] = pickupDatetime;
-        row["tpep_dropoff_datetime"] = dropoffDateTime;
-        row["passenger_count"] = cabData.passenger_count;
-        row["trip_distance"] = cabData.trip_distance;
-        row["store_and_fwd_flag"] = storeAndFwdFlag;
-        row["PULocationID"] = cabData.PULocationID;
-        row["DOLocationID"] = cabData.DOLocationID;
-        row["fare_amount"] = cabData.fare_amount;
-        row["tip_amount"] = cabData.tip_amount;
-        return row;
+        return new CabDataDTO()
+        {
+            tpep_pickup_datetime = pickupDatetime,
+            tpep_dropoff_datetime = dropoffDateTime,
+            passenger_count = cabData.passenger_count,
+            trip_distance = cabData.trip_distance,
+            store_and_fwd_flag = storeAndFwdFlag,
+            PULocationID = cabData.PULocationID,
+            DOLocationID = cabData.DOLocationID,
+            fare_amount = cabData.fare_amount,
+        };
     }
 
-    private CabData ReadRecord(CsvReader csv)
+    private static CabData ReadRecord(CsvReader csv)
     {
         csv.TryGetField<DateTime>("tpep_pickup_datetime", out var tpepPickupDatetime);
         csv.TryGetField<DateTime>("tpep_dropoff_datetime", out var tpepDropoffDatetime);
@@ -186,7 +201,7 @@ public class MainExecutionThread(AppSettings appSettings)
         return record;
     }
 
-    static DateTime ConvertEstToUtc(DateTime estDateTime)
+    private static DateTime ConvertEstToUtc(DateTime estDateTime)
     {
         TimeZoneInfo estZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
 
