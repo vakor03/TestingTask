@@ -39,15 +39,15 @@ public class MainExecutionThread(AppSettings appSettings, ILogger<MainExecutionT
     private DataTable CreateDataTableSchema()
     {
         var dt = new DataTable();
-        dt.Columns.Add(new DataColumn("tpep_pickup_datetime", typeof(DateTime)));
-        dt.Columns.Add(new DataColumn("tpep_dropoff_datetime", typeof(DateTime)));
-        dt.Columns.Add(new DataColumn("passenger_count", typeof(byte)));
-        dt.Columns.Add(new DataColumn("trip_distance", typeof(decimal)));
-        dt.Columns.Add(new DataColumn("store_and_fwd_flag", typeof(string)));
-        dt.Columns.Add(new DataColumn("PULocationID", typeof(int)));
-        dt.Columns.Add(new DataColumn("DOLocationID", typeof(int)));
-        dt.Columns.Add(new DataColumn("fare_amount", typeof(decimal)));
-        dt.Columns.Add(new DataColumn("tip_amount", typeof(decimal)));
+        dt.Columns.Add(new DataColumn(ColumnNames.TpepPickupDatetime, typeof(DateTime)));
+        dt.Columns.Add(new DataColumn(ColumnNames.TpepDropoffDatetime, typeof(DateTime)));
+        dt.Columns.Add(new DataColumn(ColumnNames.PassengerCount, typeof(byte)));
+        dt.Columns.Add(new DataColumn(ColumnNames.TripDistance, typeof(decimal)));
+        dt.Columns.Add(new DataColumn(ColumnNames.StoreAndFwdFlag, typeof(string)));
+        dt.Columns.Add(new DataColumn(ColumnNames.PuLocationId, typeof(int)));
+        dt.Columns.Add(new DataColumn(ColumnNames.DoLocationId, typeof(int)));
+        dt.Columns.Add(new DataColumn(ColumnNames.FareAmount, typeof(decimal)));
+        dt.Columns.Add(new DataColumn(ColumnNames.TipAmount, typeof(decimal)));
         return dt;
     }
 
@@ -131,29 +131,29 @@ public class MainExecutionThread(AppSettings appSettings, ILogger<MainExecutionT
         bulk.BatchSize = batchSize;
         bulk.BulkCopyTimeout = BULK_COPY_TIMEOUT;
 
-        bulk.ColumnMappings.Add("tpep_pickup_datetime", "tpep_pickup_datetime");
-        bulk.ColumnMappings.Add("tpep_dropoff_datetime", "tpep_dropoff_datetime");
-        bulk.ColumnMappings.Add("passenger_count", "passenger_count");
-        bulk.ColumnMappings.Add("trip_distance", "trip_distance");
-        bulk.ColumnMappings.Add("store_and_fwd_flag", "store_and_fwd_flag");
-        bulk.ColumnMappings.Add("PULocationID", "PULocationID");
-        bulk.ColumnMappings.Add("DOLocationID", "DOLocationID");
-        bulk.ColumnMappings.Add("fare_amount", "fare_amount");
-        bulk.ColumnMappings.Add("tip_amount", "tip_amount");
+        bulk.ColumnMappings.Add(ColumnNames.TpepPickupDatetime, ColumnNames.TpepPickupDatetime);
+        bulk.ColumnMappings.Add(ColumnNames.TpepDropoffDatetime, ColumnNames.TpepDropoffDatetime);
+        bulk.ColumnMappings.Add(ColumnNames.PassengerCount, ColumnNames.PassengerCount);
+        bulk.ColumnMappings.Add(ColumnNames.TripDistance, ColumnNames.TripDistance);
+        bulk.ColumnMappings.Add(ColumnNames.StoreAndFwdFlag, ColumnNames.StoreAndFwdFlag);
+        bulk.ColumnMappings.Add(ColumnNames.PuLocationId, ColumnNames.PuLocationId);
+        bulk.ColumnMappings.Add(ColumnNames.DoLocationId, ColumnNames.DoLocationId);
+        bulk.ColumnMappings.Add(ColumnNames.FareAmount, ColumnNames.FareAmount);
+        bulk.ColumnMappings.Add(ColumnNames.TipAmount, ColumnNames.TipAmount);
     }
 
     private static DataRow ConvertToRow(DataTable table, CabDataDTO cabData)
     {
         var row = table.NewRow();
-        row["tpep_pickup_datetime"] = cabData.tpep_pickup_datetime;
-        row["tpep_dropoff_datetime"] = cabData.tpep_dropoff_datetime;
-        row["passenger_count"] = cabData.passenger_count;
-        row["trip_distance"] = cabData.trip_distance;
-        row["store_and_fwd_flag"] = cabData.store_and_fwd_flag;
-        row["PULocationID"] = cabData.PULocationID;
-        row["DOLocationID"] = cabData.DOLocationID;
-        row["fare_amount"] = cabData.fare_amount;
-        row["tip_amount"] = cabData.tip_amount;
+        row[ColumnNames.TpepPickupDatetime] = cabData.tpep_pickup_datetime;
+        row[ColumnNames.TpepDropoffDatetime] = cabData.tpep_dropoff_datetime;
+        row[ColumnNames.PassengerCount] = cabData.passenger_count;
+        row[ColumnNames.TripDistance] = cabData.trip_distance;
+        row[ColumnNames.StoreAndFwdFlag] = cabData.store_and_fwd_flag;
+        row[ColumnNames.PuLocationId] = cabData.PULocationID;
+        row[ColumnNames.DoLocationId] = cabData.DOLocationID;
+        row[ColumnNames.FareAmount] = cabData.fare_amount;
+        row[ColumnNames.TipAmount] = cabData.tip_amount;
         return row;
     }
 
@@ -187,15 +187,15 @@ public class MainExecutionThread(AppSettings appSettings, ILogger<MainExecutionT
 
     private static CabData ReadRecord(CsvReader csv)
     {
-        csv.TryGetField<DateTime>("tpep_pickup_datetime", out var tpepPickupDatetime);
-        csv.TryGetField<DateTime>("tpep_dropoff_datetime", out var tpepDropoffDatetime);
-        csv.TryGetField<int>("passenger_count", out var passengerCount);
-        csv.TryGetField<decimal>("trip_distance", out var tripDistance);
-        csv.TryGetField<string>("store_and_fwd_flag", out var storeAndFwdFlag);
-        csv.TryGetField<int>("PULocationID", out var pulocationId);
-        csv.TryGetField<int>("DOLocationID", out var dolocationId);
-        csv.TryGetField<decimal>("fare_amount", out var fareAmount);
-        csv.TryGetField<decimal>("tip_amount", out var tipAmount);
+        csv.TryGetField<DateTime>(ColumnNames.TpepPickupDatetime, out var tpepPickupDatetime);
+        csv.TryGetField<DateTime>(ColumnNames.TpepDropoffDatetime, out var tpepDropoffDatetime);
+        csv.TryGetField<int>(ColumnNames.PassengerCount, out var passengerCount);
+        csv.TryGetField<decimal>(ColumnNames.TripDistance, out var tripDistance);
+        csv.TryGetField<string>(ColumnNames.StoreAndFwdFlag, out var storeAndFwdFlag);
+        csv.TryGetField<int>(ColumnNames.PuLocationId, out var pulocationId);
+        csv.TryGetField<int>(ColumnNames.DoLocationId, out var dolocationId);
+        csv.TryGetField<decimal>(ColumnNames.FareAmount, out var fareAmount);
+        csv.TryGetField<decimal>(ColumnNames.TipAmount, out var tipAmount);
 
         var record = new CabData()
         {
