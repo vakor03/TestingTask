@@ -6,30 +6,17 @@ using Microsoft.Data.SqlClient;
 
 namespace TestingTask.CLI;
 
-public class Foo
-{
-    public DateTime tpep_pickup_datetime { get; set; }
-    public DateTime tpep_dropoff_datetime { get; set; }
-    public int passenger_count { get; set; }
-    public decimal trip_distance { get; set; }
-    public string? store_and_fwd_flag { get; set; }
-    public int PULocationID { get; set; }
-    public int DOLocationID { get; set; }
-    public decimal fare_amount { get; set; }
-    public decimal tip_amount { get; set; }
-}
-
 public class MainExecutionThread(AppSettings appSettings)
 {
     public void Run()
     {
-        WriteDuplicatesCsv();
-
         var foos = ReadCsvFile();
 
         var table = CreateDataTableSchema();
 
         ProcessData(foos, table);
+
+        WriteDuplicatesCsv();
     }
 
     private void WriteDuplicatesCsv()
@@ -37,16 +24,7 @@ public class MainExecutionThread(AppSettings appSettings)
         using var duplicatesWriter = new StreamWriter(appSettings.DuplicatesFilePath, false);
         using var duplicatesCsv = new CsvWriter(duplicatesWriter, CultureInfo.InvariantCulture);
 
-        duplicatesCsv.WriteField("tpep_pickup_datetime");
-        duplicatesCsv.WriteField("tpep_dropoff_datetime");
-        duplicatesCsv.WriteField("passenger_count");
-        duplicatesCsv.WriteField("trip_distance");
-        duplicatesCsv.WriteField("store_and_fwd_flag");
-        duplicatesCsv.WriteField("PULocationID");
-        duplicatesCsv.WriteField("DOLocationID");
-        duplicatesCsv.WriteField("fare_amount");
-        duplicatesCsv.WriteField("tip_amount");
-        duplicatesCsv.NextRecord();
+        duplicatesCsv.WriteRecords(_removedData);
     }
 
     private DataTable CreateDataTableSchema()
@@ -80,7 +58,17 @@ public class MainExecutionThread(AppSettings appSettings)
         csv.Read();
         csv.ReadHeader();
         while (csv.Read())
-            yield return ReadRecord(csv);
+        {
+            Foo record = ReadRecord(csv);
+            var duplicateKey = CreateDuplicateKey(record);
+            if (DuplicateKeyAlreadyAdded(duplicateKey))
+                _removedData.Add(record);
+            else
+            {
+                _duplicates.Add(duplicateKey);
+                yield return record;
+            }
+        }
     }
 
     private void ProcessData(IEnumerable<Foo> foos, DataTable table)
@@ -94,13 +82,23 @@ public class MainExecutionThread(AppSettings appSettings)
     private void ProcessSingleBatch(List<Foo> batch, DataTable dataTable)
     {
         {
-            foreach (Foo foo in batch) 
-                dataTable.Rows.Add(ConvertToRow(dataTable, foo));
+            foreach (Foo foo in batch)
+                dataTable.Rows.Add(TransformDataAndConvertToRow(dataTable, foo));
 
             BulkInsertTable(dataTable, appSettings.ConnectionString);
             dataTable.Clear();
         }
     }
+
+    private static DuplicateKey CreateDuplicateKey(Foo foo) =>
+        new(foo.tpep_pickup_datetime, foo.tpep_dropoff_datetime,
+            foo.passenger_count);
+
+    private bool DuplicateKeyAlreadyAdded(DuplicateKey duplicateKey) =>
+        _duplicates.Contains(duplicateKey);
+
+    private HashSet<DuplicateKey> _duplicates = new();
+    private List<Foo> _removedData = new();
 
     private int BulkInsertTable(DataTable table, string connectionString)
     {
@@ -138,14 +136,26 @@ public class MainExecutionThread(AppSettings appSettings)
         bulk.ColumnMappings.Add("tip_amount", "tip_amount");
     }
 
-    private static DataRow ConvertToRow(DataTable table, Foo foo)
+    private static DataRow TransformDataAndConvertToRow(DataTable table, Foo foo)
     {
+        DateTime fooTpepPickupDatetime = foo.tpep_pickup_datetime;
+        DateTime fooTpepDropoffDatetime = foo.tpep_dropoff_datetime;
+        string? fooStoreAndFwdFlag = foo.store_and_fwd_flag;
+        fooStoreAndFwdFlag = fooStoreAndFwdFlag switch
+        {
+            "N" => "No",
+            "Y" => "Yes",
+            _ => fooStoreAndFwdFlag
+        };
+        fooTpepPickupDatetime = ConvertEstToUtc(fooTpepPickupDatetime);
+        fooTpepDropoffDatetime = ConvertEstToUtc(fooTpepDropoffDatetime);
+
         var row = table.NewRow();
-        row["tpep_pickup_datetime"] = foo.tpep_pickup_datetime;
-        row["tpep_dropoff_datetime"] = foo.tpep_dropoff_datetime;
+        row["tpep_pickup_datetime"] = fooTpepPickupDatetime;
+        row["tpep_dropoff_datetime"] = fooTpepDropoffDatetime;
         row["passenger_count"] = foo.passenger_count;
         row["trip_distance"] = foo.trip_distance;
-        row["store_and_fwd_flag"] = foo.store_and_fwd_flag;
+        row["store_and_fwd_flag"] = fooStoreAndFwdFlag;
         row["PULocationID"] = foo.PULocationID;
         row["DOLocationID"] = foo.DOLocationID;
         row["fare_amount"] = foo.fare_amount;
@@ -178,5 +188,12 @@ public class MainExecutionThread(AppSettings appSettings)
             tip_amount = tipAmount
         };
         return record;
+    }
+
+    static DateTime ConvertEstToUtc(DateTime estDateTime)
+    {
+        TimeZoneInfo estZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
+
+        return TimeZoneInfo.ConvertTimeToUtc(estDateTime, estZone);
     }
 }
