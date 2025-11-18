@@ -1,5 +1,4 @@
 ﻿using System.Text;
-using System.Text.RegularExpressions;
 
 namespace TestingTask.CLI;
 
@@ -27,6 +26,9 @@ public static class SecurityUtils
         return result;
     }
 
-    public static int ClampNonNegative(int value) => value < 0 ? 0 : value;
-    public static decimal ClampNonNegative(decimal value) => value < 0 ? 0 : value;
+    public static int ClampNonNegative(int value) =>
+        value < 0 ? 0 : value;
+
+    public static decimal ClampNonNegative(decimal value) =>
+        value < 0 ? 0 : value;
 }
