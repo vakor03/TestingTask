@@ -3,10 +3,11 @@ using System.Globalization;
 using CsvHelper;
 using CsvHelper.Configuration;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 
 namespace TestingTask.CLI;
 
-public class MainExecutionThread(AppSettings appSettings)
+public class MainExecutionThread(AppSettings appSettings, ILogger<MainExecutionThread> logger)
 {
     private readonly HashSet<DuplicateKey> _duplicates = new();
     private readonly List<CabData> _removedData = new();
@@ -17,9 +18,11 @@ public class MainExecutionThread(AppSettings appSettings)
 
         var table = CreateDataTableSchema();
 
-        ProcessData(parsedData, table);
+        ProcessData(parsedData, table, out int rowsInserted);
 
         WriteDuplicatesCsv();
+        
+        logger.LogInformation($"Inserted {rowsInserted} rows.");
     }
 
     private void WriteDuplicatesCsv()
@@ -74,18 +77,22 @@ public class MainExecutionThread(AppSettings appSettings)
         }
     }
 
-    private void ProcessData(IEnumerable<CabData> cabDataList, DataTable table)
+    private void ProcessData(IEnumerable<CabData> cabDataList, DataTable table, out int rowsInserted)
     {
+        rowsInserted = 0;
         foreach (List<CabData> batch in cabDataList.BatchZeroCopy(appSettings.BatchSize))
-            ProcessSingleBatch(batch, table);
+        {
+            ProcessSingleBatch(batch, table, out int rowsInsertedInBatch);
+            rowsInserted += rowsInsertedInBatch;
+        }
     }
 
-    private void ProcessSingleBatch(List<CabData> batch, DataTable dataTable)
+    private void ProcessSingleBatch(List<CabData> batch, DataTable dataTable, out int rowsInserted)
     {
         foreach (CabData cabData in batch)
             dataTable.Rows.Add(ConvertToRow(dataTable, TransformDataToDTO(cabData)));
 
-        BulkInsertTable(dataTable, appSettings.ConnectionString, appSettings.TableName);
+        rowsInserted = BulkInsertTable(dataTable, appSettings.ConnectionString, appSettings.TableName);
         dataTable.Clear();
     }
 
@@ -110,7 +117,7 @@ public class MainExecutionThread(AppSettings appSettings)
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Bulk insert failed: " + ex.Message);
+            logger.LogError("Bulk insert failed: " + ex.Message);
             throw;
         }
     }

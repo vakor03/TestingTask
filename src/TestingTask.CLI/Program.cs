@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using TestingTask.CLI;
 
 var config = new ConfigurationBuilder()
@@ -12,6 +13,11 @@ var serviceCollection = new ServiceCollection();
 
 serviceCollection.AddSingleton<AppSettings>(appSettings);
 serviceCollection.AddSingleton<MainExecutionThread>();
+serviceCollection.AddLogging(options =>
+{
+    options.AddConsole();
+    options.SetMinimumLevel(LogLevel.Information);
+});
 
 ServiceProvider serviceProvider = serviceCollection.BuildServiceProvider();
 
