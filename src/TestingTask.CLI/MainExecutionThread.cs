@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Globalization;
 using CsvHelper;
 using CsvHelper.Configuration;
@@ -156,7 +156,7 @@ public class MainExecutionThread(AppSettings appSettings)
         {
             "N" => "No",
             "Y" => "Yes",
-            _ => storeAndFwdFlag
+            _ => SecurityUtils.SanitizeText(storeAndFwdFlag)
         };
         pickupDatetime = ConvertEstToUtc(pickupDatetime);
         dropoffDateTime = ConvertEstToUtc(dropoffDateTime);
@@ -165,12 +165,13 @@ public class MainExecutionThread(AppSettings appSettings)
         {
             tpep_pickup_datetime = pickupDatetime,
             tpep_dropoff_datetime = dropoffDateTime,
-            passenger_count = cabData.passenger_count,
-            trip_distance = cabData.trip_distance,
+            passenger_count = SecurityUtils.ClampNonNegative(cabData.passenger_count),
+            trip_distance = SecurityUtils.ClampNonNegative(cabData.trip_distance),
             store_and_fwd_flag = storeAndFwdFlag,
-            PULocationID = cabData.PULocationID,
-            DOLocationID = cabData.DOLocationID,
-            fare_amount = cabData.fare_amount,
+            PULocationID = SecurityUtils.ClampNonNegative(cabData.PULocationID),
+            DOLocationID = SecurityUtils.ClampNonNegative(cabData.DOLocationID),
+            fare_amount = SecurityUtils.ClampNonNegative(cabData.fare_amount),
+            tip_amount = SecurityUtils.ClampNonNegative(cabData.tip_amount)
         };
     }
 
